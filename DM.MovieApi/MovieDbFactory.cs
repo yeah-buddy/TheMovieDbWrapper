@@ -70,7 +70,10 @@ namespace DM.MovieApi
         {
             ContainerGuard();
 
-            throw new NotImplementedException();
+            // Note: the concrete implementation is currently excluded from the .csproj, but is still included in source control.
+
+            string msg = $"{nameof( GetAllApiRequests )} has been temporarily disabled due to porting the code base to Asp.Net Core to provide support for portable library projects.";
+            throw new NotImplementedException( msg );
         }
 
         /// <summary>
@@ -86,7 +89,7 @@ namespace DM.MovieApi
         {
             if( !IsFactoryComposed )
             {
-                throw new InvalidOperationException( "RegisterSettings must be called before the Factory can Create anything." );
+                throw new InvalidOperationException( $"{nameof( RegisterSettings )} must be called before the Factory can Create anything." );
             }
         }
 
@@ -104,23 +107,23 @@ namespace DM.MovieApi
 
         private class ApiRequestResolver
         {
-            private static IReadOnlyDictionary<Type, Func<object>> _supportedDependencyTypeMap;
-            private static ConcurrentDictionary<Type, ConstructorInfo> _typeCtorMap;
+            private static readonly IReadOnlyDictionary<Type, Func<object>> SupportedDependencyTypeMap;
+            private static readonly ConcurrentDictionary<Type, ConstructorInfo> TypeCtorMap;
 
             static ApiRequestResolver()
             {
-                _supportedDependencyTypeMap = new Dictionary<Type, Func<object>>
+                SupportedDependencyTypeMap = new Dictionary<Type, Func<object>>
                 {
                     {typeof(IMovieDbSettings), () => Settings},
                     {typeof(IApiGenreRequest), () => new ApiGenreRequest( Settings )}
                 };
 
-                _typeCtorMap = new ConcurrentDictionary<Type, ConstructorInfo>();
+                TypeCtorMap = new ConcurrentDictionary<Type, ConstructorInfo>();
             }
 
             public T Get<T>() where T : IApiRequest
             {
-                ConstructorInfo ctor = _typeCtorMap.GetOrAdd( typeof( T ), GetConstructor );
+                ConstructorInfo ctor = TypeCtorMap.GetOrAdd( typeof( T ), GetConstructor );
 
                 ParameterInfo[] param = ctor.GetParameters();
 
@@ -132,12 +135,12 @@ namespace DM.MovieApi
                 var paramObjects = new List<object>( param.Length );
                 foreach( ParameterInfo p in param )
                 {
-                    if( _supportedDependencyTypeMap.ContainsKey( p.ParameterType ) == false )
+                    if( SupportedDependencyTypeMap.ContainsKey( p.ParameterType ) == false )
                     {
                         throw new InvalidOperationException( $"{p.ParameterType.FullName} is not a supported dependency type for {typeof( T ).FullName}." );
                     }
-
-                    Func<object> typeResolver = _supportedDependencyTypeMap[p.ParameterType];
+                    
+                    Func<object> typeResolver = SupportedDependencyTypeMap[p.ParameterType];
 
                     paramObjects.Add( typeResolver() );
                 }
@@ -176,7 +179,7 @@ namespace DM.MovieApi
                 TypeInfo[] implementingTypes = typeInfo.Assembly.DefinedTypes
                     .Where( x => x.IsAbstract == false )
                     .Where( x => x.IsInterface == false )
-                    .Where( x => typeInfo.IsAssignableFrom( x ) )
+                    .Where( typeInfo.IsAssignableFrom )
                     .ToArray();
 
                 if( implementingTypes.Length != 1 )
